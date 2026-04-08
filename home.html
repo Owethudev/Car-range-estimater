@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SA Fuel Range Estimator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f3;
+    --bg-tertiary: #eeecea;
+    --bg-info: #e6f1fb;
+    --bg-success: #eaf3de;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b6b68;
+    --text-info: #185fa5;
+    --text-success: #3b6d11;
+    --border-light: rgba(0,0,0,0.12);
+    --border-medium: rgba(0,0,0,0.22);
+    --border-info: rgba(24,95,165,0.35);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1c1c1a;
+      --bg-secondary: #242422;
+      --bg-tertiary: #2c2c2a;
+      --bg-info: #0c2e4a;
+      --bg-success: #172e0a;
+      --text-primary: #f0ede8;
+      --text-secondary: #a0a09a;
+      --text-info: #85b7eb;
+      --text-success: #97c459;
+      --border-light: rgba(255,255,255,0.1);
+      --border-medium: rgba(255,255,255,0.18);
+      --border-info: rgba(133,183,235,0.35);
+    }
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 1.5rem 1rem;
+  }
+
+  .app {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--bg-info);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .logo svg { width: 24px; height: 24px; }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .live-badge {
+    display: inline-block;
+    background: var(--bg-success);
+    color: var(--text-success);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: var(--radius-md);
+    letter-spacing: .03em;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* ── Price banner ── */
+  .price-banner {
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 12px 16px;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .price-tag { font-size: 12px; color: var(--text-secondary); margin-bottom: 2px; }
+  .price-val { font-size: 15px; font-weight: 500; color: var(--text-primary); }
+
+  .toggle-row { display: flex; align-items: center; gap: 8px; }
+  .toggle-label { font-size: 13px; color: var(--text-secondary); }
+
+  .toggle { position: relative; width: 48px; height: 26px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .slider-t {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg-tertiary);
+    border: 0.5px solid var(--border-medium);
+    border-radius: 13px;
+    transition: .2s;
+  }
+
+  .slider-t::before {
+    content: "";
+    position: absolute;
+    width: 20px; height: 20px;
+    left: 2px; bottom: 2px;
+    background: var(--text-secondary);
+    border-radius: 50%;
+    transition: .2s;
+  }
+
+  input:checked + .slider-t { background: var(--bg-info); border-color: var(--border-info); }
+  input:checked + .slider-t::before { transform: translateX(22px); background: var(--text-info); }
+
+  /* ── Card sections ── */
+  .section {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Form fields ── */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field-wide { grid-column: span 2; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+
+  .field label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .field input,
+  .field select {
+    width: 100%;
+    font-size: 14px;
+    padding: 9px 11px;
+    border: 0.5px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    outline: none;
+    font-family: var(--font);
+    transition: border-color .15s;
+  }
+
+  .field input:focus,
+  .field select:focus { border-color: var(--border-info); }
+
+  /* ── Fuel tabs ── */
+  .fuel-tabs { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+
+  .fuel-tab {
+    padding: 6px 14px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-medium);
+    font-size: 13px;
+    cursor: pointer;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    transition: .15s;
+    user-select: none;
+  }
+
+  .fuel-tab.active {
+    background: var(--bg-info);
+    color: var(--text-info);
+    border-color: var(--border-info);
+    font-weight: 500;
+  }
+
+  /* ── Litre slider ── */
+  .litre-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+
+  .litre-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--text-info);
+    height: 4px;
+    cursor: pointer;
+  }
+
+  .litre-num {
+    width: 70px !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    text-align: center;
+  }
+
+  .cost-line {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .cost-line strong { color: var(--text-primary); }
+
+  /* ── CTA button ── */
+  .btn-calc {
+    width: 100%;
+    padding: 13px;
+    background: var(--bg-info);
+    color: var(--text-info);
+    border: 0.5px solid var(--border-info);
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font);
+    margin-bottom: 1rem;
+    transition: opacity .15s;
+  }
+
+  .btn-calc:hover { opacity: .82; }
+  .btn-calc:active { transform: scale(0.99); }
+
+  /* ── Loading ── */
+  .loading {
+    text-align: center;
+    padding: 1rem;
+    color: var(--text-secondary);
+    font-size: 14px;
+    display: none;
+  }
+  .loading.show { display: block; }
+
+  /* ── Results ── */
+  .results {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    display: none;
+  }
+  .results.show { display: block; }
+
+  /* ── Car display ── */
+  .car-display {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .car-art {
+    width: 160px;
+    height: 90px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-light);
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .car-info-grid {
+    flex: 1;
+    min-width: 180px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .ci {
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+  }
+
+  .ci-label { font-size: 11px; color: var(--text-secondary); }
+  .ci-val { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-top: 2px; }
+
+  /* ── Range hero ── */
+  .range-hero {
+    text-align: center;
+    padding: 1.5rem 1rem;
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    margin-bottom: 1rem;
+  }
+
+  .range-big {
+    font-size: 56px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .range-unit { font-size: 17px; color: var(--text-secondary); margin-top: 4px; }
+  .range-sub  { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+
+  /* ── Metrics ── */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .metric {
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 10px;
+    text-align: center;
+  }
+
+  .metric-label { font-size: 11px; color: var(--text-secondary); }
+  .metric-val { font-size: 16px; font-weight: 500; color: var(--text-primary); margin-top: 3px; }
+
+  /* ── AI insight ── */
+  .ai-insight {
+    background: var(--bg-info);
+    border: 0.5px solid var(--border-info);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    font-size: 13px;
+    color: var(--text-info);
+    line-height: 1.65;
+    display: none;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 500px) {
+    .field-grid, .field-grid-3 { grid-template-columns: 1fr; }
+    .field-wide { grid-column: span 1; }
+    .metrics-row { grid-template-columns: 1fr 1fr; }
+    .car-info-grid { grid-template-columns: 1fr 1fr; }
+    .range-big { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-info)" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="8" width="22" height="10" rx="3"/>
+        <path d="M5 8V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"/>
+        <circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
+      </svg>
+    </div>
+    <div>
+      <h1>SA Fuel Range Estimator</h1>
+      <div class="subtitle">
+        April 2026 pump prices · AI-powered insights
+        <span class="live-badge">LIVE PRICES</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Price banner + toggle -->
+  <div class="price-banner">
+    <div>
+      <div class="price-tag">Petrol 95 — <span id="location-label">Inland</span></div>
+      <div class="price-val">
+        R<span id="price-95">23.36</span>/ℓ &nbsp;·&nbsp;
+        93: R<span id="price-93">23.25</span>/ℓ
+      </div>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Coastal</span>
+      <label class="toggle">
+        <input type="checkbox" id="location-toggle" onchange="updatePrices()" checked>
+        <span class="slider-t"></span>
+      </label>
+      <span class="toggle-label">Inland</span>
+    </div>
+  </div>
+
+  <!-- Car details -->
+  <div class="section">
+    <div class="section-title">Your car</div>
+    <div class="field-grid">
+      <div class="field field-wide">
+        <label>Make &amp; Model</label>
+        <input type="text" id="car-make"
+               placeholder="e.g. Toyota Corolla, VW Polo Vivo, BMW 325i"
+               oninput="clearResults()">
+      </div>
+      <div class="field">
+        <label>Year</label>
+        <input type="number" id="car-year" placeholder="e.g. 2005"
+               min="1970" max="2020" oninput="clearResults()">
+      </div>
+      <div class="field">
+        <label>Engine size (cc)</label>
+        <input type="number" id="engine-cc" placeholder="e.g. 1600"
+               oninput="clearResults()">
+      </div>
+      <div class="field">
+        <label>Transmission</label>
+        <select id="transmission" onchange="clearResults()">
+          <option value="manual">Manual</option>
+          <option value="auto">Automatic</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Typical driving</label>
+        <select id="drive-type" onchange="clearResults()">
+          <option value="city">City (stop/go)</option>
+          <option value="mixed">Mixed</option>
+          <option value="highway">Highway</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fuel details -->
+  <div class="section">
+    <div class="section-title">Fuel details</div>
+
+    <div class="fuel-tabs">
+      <div class="fuel-tab active" onclick="setFuel('95', this)">Petrol 95</div>
+      <div class="fuel-tab"        onclick="setFuel('93', this)">Petrol 93</div>
+      <div class="fuel-tab"        onclick="setFuel('diesel', this)">Diesel</div>
+    </div>
+
+    <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:8px">
+      Litres to pour in
+    </label>
+
+    <div class="litre-row">
+      <input type="range" id="litres-slider" min="5" max="80" value="30" step="1"
+             oninput="syncSlider(this.value)">
+      <input type="number" id="litres-num" class="field litre-num" value="30"
+             min="1" max="200" oninput="syncNum(this.value)">
+      <span style="font-size:14px;color:var(--text-secondary)">ℓ</span>
+    </div>
+
+    <div class="cost-line">
+      Fuel cost: <strong id="fuel-cost">R702.00</strong>
+    </div>
+  </div>
+
+  <button class="btn-calc" onclick="calculate()">Estimate my range ↗</button>
+
+  <div class="loading" id="loading">Asking AI for personalised insights…</div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+
+    <div class="car-display">
+      <div class="car-art" id="car-art"></div>
+      <div class="car-info-grid" id="car-info-grid"></div>
+    </div>
+
+    <div class="range-hero">
+      <div class="range-big" id="range-km">—</div>
+      <div class="range-unit">kilometres estimated</div>
+      <div class="range-sub" id="range-sub"></div>
+    </div>
+
+    <div class="metrics-row">
+      <div class="metric">
+        <div class="metric-label">Fuel used</div>
+        <div class="metric-val" id="m-litres">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Cost per km</div>
+        <div class="metric-val" id="m-cpkm">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Avg consumption</div>
+        <div class="metric-val" id="m-cons">—</div>
+      </div>
+    </div>
+
+    <div class="ai-insight" id="ai-insight"></div>
+
+  </div>
+</div><!-- /app -->
+
+<script>
+/* ── Petrol prices — April 2026 (DMPR confirmed) ── */
+const PRICES = {
+  inland:  { '95': 23.36, '93': 23.25, 'diesel': 26.11 },
+  coastal: { '95': 22.53, '93': 22.42, 'diesel': 25.35 }
+};
+
+let selectedFuel    = '95';
+let currentLocation = 'inland';
+
+/* ── Price banner ── */
+function updatePrices() {
+  const tog = document.getElementById('location-toggle');
+  currentLocation = tog.checked ? 'inland' : 'coastal';
+  document.getElementById('location-label').textContent =
+    currentLocation === 'inland' ? 'Inland' : 'Coastal';
+  document.getElementById('price-95').textContent =
+    PRICES[currentLocation]['95'].toFixed(2);
+  document.getElementById('price-93').textContent =
+    PRICES[currentLocation]['93'].toFixed(2);
+  updateCost();
+  clearResults();
+}
+
+/* ── Fuel tab selection ── */
+function setFuel(f, el) {
+  selectedFuel = f;
+  document.querySelectorAll('.fuel-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  updateCost();
+  clearResults();
+}
+
+/* ── Litre slider sync ── */
+function syncSlider(v) {
+  document.getElementById('litres-num').value = v;
+  updateCost();
+  clearResults();
+}
+function syncNum(v) {
+  document.getElementById('litres-slider').value = Math.min(v, 80);
+  updateCost();
+  clearResults();
+}
+
+/* ── Cost calculation ── */
+function updateCost() {
+  const litres = parseFloat(document.getElementById('litres-num').value) || 0;
+  const price  = PRICES[currentLocation][selectedFuel];
+  document.getElementById('fuel-cost').textContent = 'R' + (litres * price).toFixed(2);
+}
+
+function clearResults() {
+  document.getElementById('results').classList.remove('show');
+  updateCost();
+}
+
+/* ──────────────────────────────────────
+   Fuel consumption estimator
+   Based on engine size, driving style,
+   transmission, and model year.
+─────────────────────────────────────── */
+function getBaseConsumption(cc, driveType, transmission, year) {
+  cc   = parseInt(cc)   || 1600;
+  year = parseInt(year) || 2005;
+
+  let base;
+  if      (cc < 1000) base = 5.5;
+  else if (cc < 1400) base = 7.0;
+  else if (cc < 1800) base = 8.5;
+  else if (cc < 2500) base = 10.5;
+  else if (cc < 3500) base = 13.0;
+  else                base = 16.0;
+
+  if (driveType === 'city')    base *= 1.25;
+  else if (driveType === 'highway') base *= 0.80;
+
+  if (transmission === 'auto') base *= 1.08;
+
+  if      (year < 1995) base *= 1.15;
+  else if (year > 2010) base *= 0.92;
+
+  if (selectedFuel === 'diesel') base *= 0.78;
+
+  return parseFloat(base.toFixed(2));
+}
+
+/* ── SVG car illustrations ── */
+function getCarSVG(makeModel) {
+  const m = (makeModel || '').toLowerCase();
+  let color = '#5DCAA5';
+  if (m.includes('bmw') || m.includes('mercedes') || m.includes('merc') || m.includes('audi'))
+    color = '#378ADD';
+  else if (m.includes('toyota') || m.includes('lexus'))
+    color = '#D85A30';
+  else if (m.includes('vw') || m.includes('volkswagen') || m.includes('polo'))
+    color = '#534AB7';
+  else if (m.includes('ford'))
+    color = '#185FA5';
+  else if (m.includes('hyundai') || m.includes('kia'))
+    color = '#BA7517';
+  else if (m.includes('mazda') || m.includes('honda'))
+    color = '#993C1D';
+  else if (m.includes('nissan'))
+    color = '#0F6E56';
+
+  const isBakkie = /hilux|ranger|l200|bakkie|pickup|triton|amarok|navara|d-max/.test(m);
+  const isSUV    = /suv|4x4|fortuner|prado|cruiser|tiguan|tucson|sportage|cx-5|rav4|x5|x3|glc|discovery/.test(m);
+
+  return isBakkie ? bakkieSVG(color) : isSUV ? suvSVG(color) : sedanSVG(color);
+}
+
+function sedanSVG(c) {
+  return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg" width="160" height="90">
+    <rect x="10" y="52" width="140" height="22" rx="4" fill="${c}" opacity=".9"/>
+    <path d="M30 52 Q40 32 60 30 L100 30 Q120 32 130 52Z" fill="${c}"/>
+    <rect x="60" y="32" width="40" height="18" rx="2" fill="#B5D4F4" opacity=".7"/>
+    <rect x="12" y="65" width="20" height="6" rx="1" fill="#E6F1FB" opacity=".8"/>
+    <rect x="128" y="65" width="20" height="6" rx="1" fill="#E6F1FB" opacity=".8"/>
+    <circle cx="38"  cy="76" r="10" fill="#2C2C2A"/>
+    <circle cx="38"  cy="76" r="6"  fill="#888780"/>
+    <circle cx="122" cy="76" r="10" fill="#2C2C2A"/>
+    <circle cx="122" cy="76" r="6"  fill="#888780"/>
+    <rect x="8"   y="55" width="8" height="5" rx="1" fill="#EF9F27" opacity=".9"/>
+    <rect x="144" y="55" width="8" height="5" rx="1" fill="#E24B4A" opacity=".9"/>
+  </svg>`;
+}
+
+function suvSVG(c) {
+  return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg" width="160" height="90">
+    <rect x="8"  y="45" width="144" height="28" rx="4" fill="${c}" opacity=".9"/>
+    <rect x="18" y="30" width="124" height="18" rx="3" fill="${c}"/>
+    <rect x="22" y="32" width="52"  height="14" rx="2" fill="#B5D4F4" opacity=".7"/>
+    <rect x="86" y="32" width="52"  height="14" rx="2" fill="#B5D4F4" opacity=".7"/>
+    <rect x="8"   y="58" width="18" height="7" rx="1" fill="#E6F1FB" opacity=".8"/>
+    <rect x="134" y="58" width="18" height="7" rx="1" fill="#E6F1FB" opacity=".8"/>
+    <circle cx="36"  cy="76" r="11" fill="#2C2C2A"/>
+    <circle cx="36"  cy="76" r="6"  fill="#888780"/>
+    <circle cx="124" cy="76" r="11" fill="#2C2C2A"/>
+    <circle cx="124" cy="76" r="6"  fill="#888780"/>
+    <rect x="6"   y="50" width="10" height="6" rx="1" fill="#EF9F27" opacity=".9"/>
+    <rect x="144" y="50" width="10" height="6" rx="1" fill="#E24B4A" opacity=".9"/>
+  </svg>`;
+}
+
+function bakkieSVG(c) {
+  return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg" width="160" height="90">
+    <rect x="70" y="50" width="82" height="25" rx="3" fill="${c}" opacity=".8"/>
+    <rect x="8"  y="42" width="68" height="33" rx="4" fill="${c}" opacity=".9"/>
+    <rect x="14" y="44" width="55" height="18" rx="2" fill="#B5D4F4" opacity=".7"/>
+    <rect x="6"  y="58" width="14" height="6"  rx="1" fill="#E6F1FB" opacity=".8"/>
+    <circle cx="34"  cy="78" r="10" fill="#2C2C2A"/>
+    <circle cx="34"  cy="78" r="6"  fill="#888780"/>
+    <circle cx="126" cy="78" r="10" fill="#2C2C2A"/>
+    <circle cx="126" cy="78" r="6"  fill="#888780"/>
+    <rect x="6"   y="52" width="8" height="5" rx="1" fill="#EF9F27" opacity=".9"/>
+    <rect x="146" y="55" width="8" height="5" rx="1" fill="#E24B4A" opacity=".9"/>
+  </svg>`;
+}
+
+/* ── Main calculate function ── */
+async function calculate() {
+  const makeModel = document.getElementById('car-make').value.trim();
+  const year      = document.getElementById('car-year').value;
+  const cc        = document.getElementById('engine-cc').value;
+  const trans     = document.getElementById('transmission').value;
+  const driveType = document.getElementById('drive-type').value;
+  const litres    = parseFloat(document.getElementById('litres-num').value) || 0;
+
+  if (!makeModel) {
+    alert('Please enter your car make and model.');
+    return;
+  }
+  if (!litres || litres <= 0) {
+    alert('Please enter how many litres you are filling up.');
+    return;
+  }
+
+  const cons      = getBaseConsumption(cc, driveType, trans, year);
+  const range     = (litres / cons) * 100;
+  const price     = PRICES[currentLocation][selectedFuel];
+  const totalCost = litres * price;
+  const costPerKm = totalCost / range;
+  const driveLabel = driveType === 'city' ? 'city stop-go'
+                   : driveType === 'mixed' ? 'mixed city/highway' : 'highway';
+  const fuelLabel = selectedFuel === 'diesel' ? 'Diesel' : 'Petrol ' + selectedFuel;
+
+  /* ── Populate results ── */
+  document.getElementById('range-km').textContent = Math.round(range);
+  document.getElementById('range-sub').textContent =
+    `${litres}ℓ of ${fuelLabel} · ${currentLocation} price · R${totalCost.toFixed(2)} spent`;
+  document.getElementById('m-litres').textContent = litres + 'ℓ';
+  document.getElementById('m-cpkm').textContent   = 'R' + costPerKm.toFixed(2);
+  document.getElementById('m-cons').textContent   = cons.toFixed(1) + 'ℓ/100km';
+
+  /* ── Car illustration ── */
+  document.getElementById('car-art').innerHTML = getCarSVG(makeModel);
+
+  /* ── Car info grid ── */
+  const infoItems = [
+    { label: 'Make & Model', val: makeModel },
+    { label: 'Year',         val: year || '—' },
+    { label: 'Engine',       val: cc ? cc + 'cc' : '—' },
+    { label: 'Gearbox',      val: trans === 'manual' ? 'Manual' : 'Automatic' },
+    { label: 'Drive style',  val: driveType === 'city' ? 'City' : driveType === 'mixed' ? 'Mixed' : 'Highway' },
+    { label: 'Fuel type',    val: fuelLabel },
+  ];
+  document.getElementById('car-info-grid').innerHTML = infoItems.map(i =>
+    `<div class="ci">
+       <div class="ci-label">${i.label}</div>
+       <div class="ci-val">${i.val}</div>
+     </div>`
+  ).join('');
+
+  /* ── Show results panel ── */
+  document.getElementById('ai-insight').style.display = 'none';
+  document.getElementById('results').classList.add('show');
+  document.getElementById('loading').classList.add('show');
+
+  /* ── AI insights via Claude API ── */
+  try {
+    const prompt = `You are a South African car expert. A driver has a ${year || 'older'} ${makeModel} ` +
+      `with a ${cc || 'unknown'}cc engine, ${trans} transmission. They poured ${litres} litres of ` +
+      `${fuelLabel} at the current ${currentLocation} SA pump price of R${price.toFixed(2)}/litre ` +
+      `(April 2026). Estimated consumption is ${cons.toFixed(1)}L/100km for ${driveLabel} driving, ` +
+      `giving a range of approximately ${Math.round(range)}km. ` +
+      `Give 2-3 short, practical, South Africa-specific tips to help them maximise this range and ` +
+      `save money at the pumps. Be specific to the car model where you can. ` +
+      `Keep the response under 85 words. Write in a single flowing paragraph, no bullet points.`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await resp.json();
+    const text = (data.content || []).map(b => b.text || '').join('').trim();
+
+    if (text) {
+      const el = document.getElementById('ai-insight');
+      el.textContent = '💡 ' + text;
+      el.style.display = 'block';
+    }
+  } catch (err) {
+    console.warn('AI insight unavailable:', err);
+  }
+
+  document.getElementById('loading').classList.remove('show');
+}
+
+/* ── Init ── */
+updatePrices();
+</script>
+</body>
+</html>
